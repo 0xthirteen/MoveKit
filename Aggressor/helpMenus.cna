@@ -1,0 +1,62 @@
+#
+#
+# MoveKit - Help Menus
+# by: @0xthirteen
+#
+#
+
+
+sub helpMenus::filehelpmenu{
+	local('$method $lateral $movement');
+	($method, $lateral, $movement) = split(" ", $1);
+	show_message("
+	Method:
+	    $method
+
+	Description:
+	    Creates a shellcode runner, moves to remote host, and is executed with $method
+
+	Options:
+	    Session: Beacon where activity will originate from
+	    Listener: Specifies the listener shellcode is generated (Optional)
+	    File Drop Method: Method of moving file to remote host (Optional)
+	    Command Trigger: Method of executing command against remote host
+	    Location: Location where payload is located, Options: URL, Windows Directory, Linux Directory (Optional)
+	    DropLocation: Location on remote host where file will be dropped
+	    DropFileName: Name the file will be named on remote host
+	    EventName: WMI event sub (file drop), sheduled task or service name (Optional)
+	    TargetHost: Remote host targeted
+	    Credentials: Credentials to authenticate to host (Optional)
+	    Auto: Generate file, move file, execute command automatically
+	    x86: Use x86 shellcode (Default is x64)
+	    AMSI: AMSI Bypass 
+	    Staged: Use staged shellcode (Default is stageless)
+
+		Optional - Only required/used if you select auto");
+}
+
+sub helpMenus::cmdhelpmenu{
+	local('$method $lateral $movement');
+	($method, $lateral, $movement) = split(" ", $1);
+	show_message("
+	Method:
+	    $method
+
+	Description:
+	    Hosts shellcode runner and is executed via a download cradle through $method
+
+	Options:
+	    Session: Beacon where activity will originate from
+	    Listener: Specifies the listener shellcode is generated (Optional)
+	    Command Trigger: Method of executing command against remote host
+	    File URI: URL location where payload is hosted
+	    EventName: WMI event sub, sheduled task or service name (Optional)
+	    TargetHost: Remote host targeted
+	    Credentials: Credentials to authenticate to host (Optional)
+	    Auto: Generate file, move file, execute command automatically
+	    x86: Use x86 shellcode (Default is x64)
+	    AMSI: AMSI Bypass 
+	    Staged: Use staged shellcode (Default is stageless)
+
+		Optional - Only required/used if you select auto");
+}

