@@ -419,7 +419,7 @@ sub moveDialogs::eventsubexec{
 	}));
 	dialog_description($dialog, "Leverage WMI Event Subscription with GadgetToJscript for lateral movement");
 	drow_beacon($dialog, "bid", "Session: ");
-	drow_listener($dialog, "listener", "Listener: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
 	drow_text($dialog, "computername", 'TargetHost: ');
 	drow_text($dialog, "credential", 'Credentials: ');
 	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
@@ -441,7 +441,7 @@ sub moveDialogs::exceldcomexec{
 	}));
 	dialog_description($dialog, "Leverage Excel 4.0 DCOM Server for lateral movement");
 	drow_beacon($dialog, "bid", "Session: ");
-	drow_listener($dialog, "listener", "Listener: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
 	drow_text($dialog, "computername", 'TargetHost: ');
 	drow_text($dialog, "credential", 'Credentials: ');
 	drow_checkbox($dialog, "x86", "x86: ", "Use x86 arch payload");
@@ -475,7 +475,7 @@ sub moveDialogs::mshta_cmd{
 	}));
 	dialog_description($dialog, "Leverage MSHTA Command for lateral movement");
 	drow_beacon($dialog, "bid", "Session: ");
-	drow_listener($dialog, "listener", "Listener: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
 	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
 	drow_text($dialog, "location", "File URL: ");
 	drow_text($dialog, "computername", 'TargetHost: ');
@@ -510,7 +510,7 @@ sub moveDialogs::regsvr32_cmd{
 	}));
 	dialog_description($dialog, "Leverage RegSvr32 Command for lateral movement");
 	drow_beacon($dialog, "bid", "Session: ");
-	drow_listener($dialog, "listener", "Listener: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
 	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
 	drow_text($dialog, "location", "File URL: ");
 	drow_text($dialog, "computername", 'TargetHost: ');
@@ -545,7 +545,7 @@ sub moveDialogs::wmic_cmd{
 	}));
 	dialog_description($dialog, "Leverage WMIC Command for lateral movement");
 	drow_beacon($dialog, "bid", "Session: ");
-	drow_listener($dialog, "listener", "Listener: ");
+	drow_listener_stage($dialog, "listener", "Listener: ");
 	drow_combobox($dialog, "cmdtrigger", "Command Trigger: ", @("WMI", "RDP", "SCM", "SCHTASK", "ModifySchTask", "ModifyService", "DCOM ShellWindows", "DCOM MMC", "DCOM ShellBrowserWindow", "DCOM ExcelDDE"));
 	drow_text($dialog, "location", "File URL: ");
 	drow_text($dialog, "computername", 'TargetHost: ');
@@ -912,7 +912,7 @@ sub moveDialogs::write_file_only{
 		# needs some sort of prechecks
 		&moveKit::writeonlybuilder($3);
 	}));
-	dialog_description($dialog, "Write data or files to remote or local target - CURRENTLY NO PRECHECKS");
+	dialog_description($dialog, "Write data or files to remote or local target");
 	drow_beacon($dialog, "bid", "Session: ");
 	drow_combobox($dialog, "writetype", "File Write Method: ", @("SMB to file", "WMI to file", "WMI to Regisry", "WMI to New WMIClass"));
 	drow_listener_stage($dialog, "listener", "Listener: ");

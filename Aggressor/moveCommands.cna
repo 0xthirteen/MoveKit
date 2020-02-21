@@ -44,6 +44,7 @@ beacon_command_register("move-pre-custom-file", "lateral movement with prebuilt 
 #beacon_remote_exec_method_register("mk-scheduledtask", "Remote execute via SharpMove Scheduled Task method (.NET)", &<function>);
 #bremote_exec
 
+
 alias move-msbuild {
 	local('$payloadtype $compile $descname $exectemplate $defaults $latcommand');
 	$payloadtype = "raw";

